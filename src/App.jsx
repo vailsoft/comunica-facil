@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from 'react-dom';
 
 // Função para inicializar o banco de dados
 const initDB = () => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('comunicaFacilDB', 2); // Aumentamos a versão para criar nova store
+    const request = indexedDB.open('comunicaFacilDB', 2);
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
@@ -14,7 +15,9 @@ const initDB = () => {
         db.createObjectStore('cartoes', { keyPath: 'id' });
       }
       if (!db.objectStoreNames.contains('sessoes')) {
-        db.createObjectStore('sessoes', { keyPath: 'id' });
+        const sessoesStore = db.createObjectStore('sessoes', { keyPath: 'id' });
+        // Adiciona a sessão Principal por padrão
+        sessoesStore.add({ id: 'principal', nome: 'Principal', cartoes: [] });
       }
     };
   });
@@ -22,31 +25,48 @@ const initDB = () => {
 
 // Funções para gerenciar sessões
 const salvarSessoes = async (sessoes) => {
-  const db = await initDB();
-  const tx = db.transaction('sessoes', 'readwrite');
-  const store = tx.objectStore('sessoes');
-  
-  await store.clear();
-  sessoes.forEach(sessao => {
-    store.add(sessao);
-  });
-
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  try {
+    const db = await initDB();
+    const tx = db.transaction('sessoes', 'readwrite');
+    const store = tx.objectStore('sessoes');
+    
+    // Limpa o store e adiciona todas as sessões
+    await store.clear();
+    const promises = sessoes.map(sessao => store.add(sessao));
+    
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      Promise.all(promises).catch(reject);
+    });
+  } catch (error) {
+    console.error('Erro ao salvar sessões:', error);
+    throw error;
+  }
 };
 
 const carregarSessoes = async () => {
-  const db = await initDB();
-  const tx = db.transaction('sessoes', 'readonly');
-  const store = tx.objectStore('sessoes');
-  const request = store.getAll();
+  try {
+    const db = await initDB();
+    const tx = db.transaction('sessoes', 'readonly');
+    const store = tx.objectStore('sessoes');
+    const request = store.getAll();
 
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        const sessoes = request.result;
+        // Garante que a sessão Principal existe e está na primeira posição
+        const principal = sessoes.find(s => s.id === 'principal') || 
+                         { id: 'principal', nome: 'Principal', cartoes: [] };
+        const outrasSessoes = sessoes.filter(s => s.id !== 'principal');
+        resolve([principal, ...outrasSessoes]);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('Erro ao carregar sessões:', error);
+    return [{ id: 'principal', nome: 'Principal', cartoes: [] }];
+  }
 };
 
 // Funções para gerenciar cartões
@@ -80,7 +100,7 @@ const carregarCartoes = async () => {
 
 export default function ComunicaFacil() {
   const [cartoes, setCartoes] = useState([]);
-  const [sessoes, setSessoes] = useState([{ id: 'principal', nome: 'Principal', cartoes: [] }]);
+  const [sessoes, setSessoes] = useState([]);
   const [sessaoAtual, setSessaoAtual] = useState('principal');
   const [texto, setTexto] = useState("");
   const [imagem, setImagem] = useState(null);
@@ -91,6 +111,13 @@ export default function ComunicaFacil() {
   const [cartaoParaMover, setCartaoParaMover] = useState(null);
   const [cartaoParaExcluir, setCartaoParaExcluir] = useState(null);
   const [mostrarModalExcluir, setMostrarModalExcluir] = useState(false);
+  const [sessaoParaExcluir, setSessaoParaExcluir] = useState(null);
+  const [mostrarModalExcluirSessao, setMostrarModalExcluirSessao] = useState(false);
+  const [mostrarOpcoesSessao, setMostrarOpcoesSessao] = useState(null);
+  const [sessaoComLixeira, setSessaoComLixeira] = useState(null);
+  const [sessaoComControles, setSessaoComControles] = useState(null);
+  const sessionsRef = useRef(null);
+  const longPressTimerRef = useRef(null);
 
   // Carrega os dados quando o componente é montado
   useEffect(() => {
@@ -101,15 +128,14 @@ export default function ComunicaFacil() {
           carregarSessoes()
         ]);
         
-        if (sessoesCarregadas.length > 0) {
-          setSessoes(sessoesCarregadas);
-        }
+        setSessoes(sessoesCarregadas);
         
         if (cartoesCarregados.length > 0) {
           setCartoes(cartoesCarregados);
         }
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
+        setSessoes([{ id: 'principal', nome: 'Principal', cartoes: [] }]);
       }
     };
     loadDados();
@@ -119,10 +145,12 @@ export default function ComunicaFacil() {
   useEffect(() => {
     const salvarDados = async () => {
       try {
-        await Promise.all([
-          salvarCartoes(cartoes),
-          salvarSessoes(sessoes)
-        ]);
+        if (sessoes.length > 0) {
+          await Promise.all([
+            salvarCartoes(cartoes),
+            salvarSessoes(sessoes)
+          ]);
+        }
       } catch (error) {
         console.error('Erro ao salvar dados:', error);
       }
@@ -135,9 +163,9 @@ export default function ComunicaFacil() {
     
     const reader = new FileReader();
     reader.onloadend = () => {
-      const novoCartao = {
-        id: Date.now(),
-        texto,
+    const novoCartao = {
+      id: Date.now(),
+      texto,
         imagem: reader.result,
         sessaoId: sessaoAtual
       };
@@ -151,9 +179,9 @@ export default function ComunicaFacil() {
         )
       );
       
-      setTexto("");
-      setImagem(null);
-    };
+    setTexto("");
+    setImagem(null);
+  };
     reader.readAsDataURL(imagem);
   };
 
@@ -166,7 +194,10 @@ export default function ComunicaFacil() {
       cartoes: []
     };
     
-    setSessoes(prev => [...prev, novaSessaoObj]);
+    setSessoes(prev => {
+      const [principal, ...outras] = prev;
+      return [principal, novaSessaoObj, ...outras];
+    });
     setNovaSessao("");
   };
 
@@ -209,6 +240,77 @@ export default function ComunicaFacil() {
     setCartaoParaExcluir(null);
   };
 
+  const handleExcluirSessao = (sessaoId) => {
+    if (sessaoId === 'principal') {
+      alert('A sessão Principal não pode ser excluída');
+      return;
+    }
+
+    setSessoes(prevSessoes => {
+      // Encontra a sessão que será excluída
+      const sessaoParaExcluir = prevSessoes.find(s => s.id === sessaoId);
+      if (!sessaoParaExcluir) return prevSessoes;
+
+      // Move os cartões da sessão excluída para a Principal
+      const sessoesAtualizadas = prevSessoes.map(sessao => {
+        if (sessao.id === 'principal') {
+          return {
+            ...sessao,
+            cartoes: [...sessao.cartoes, ...sessaoParaExcluir.cartoes]
+          };
+        }
+        return sessao;
+      });
+
+      // Remove a sessão excluída
+      const sessoesFinais = sessoesAtualizadas.filter(s => s.id !== sessaoId);
+
+      // Atualiza os cartões para a sessão principal
+      setCartoes(prevCartoes => 
+        prevCartoes.map(cartao => 
+          cartao.sessaoId === sessaoId ? { ...cartao, sessaoId: 'principal' } : cartao
+        )
+      );
+
+      // Se a sessão atual for excluída, volta para a principal
+      if (sessaoId === sessaoAtual) {
+        setSessaoAtual('principal');
+      }
+
+      return sessoesFinais;
+    });
+
+    setMostrarModalExcluirSessao(false);
+    setSessaoParaExcluir(null);
+  };
+
+  const moverSessao = (sessaoId, direcao) => {
+    setSessoes(prevSessoes => {
+      const index = prevSessoes.findIndex(s => s.id === sessaoId);
+      
+      // Não permite mover se:
+      // - For a sessão Principal
+      // - Tentar mover para antes da Principal (index 1 -> 0)
+      // - Tentar mover para depois da última sessão
+      if (
+        sessaoId === 'principal' ||
+        (direcao === 'esquerda' && index <= 1) ||
+        (direcao === 'direita' && index === prevSessoes.length - 1)
+      ) {
+        return prevSessoes;
+      }
+
+      const novasSessoes = [...prevSessoes];
+      const novoIndex = direcao === 'esquerda' ? index - 1 : index + 1;
+      
+      // Troca as posições
+      [novasSessoes[index], novasSessoes[novoIndex]] = 
+      [novasSessoes[novoIndex], novasSessoes[index]];
+      
+      return novasSessoes;
+    });
+  };
+
   const lerTexto = (texto) => {
     const utterance = new SpeechSynthesisUtterance(texto);
     utterance.lang = 'pt-BR';
@@ -217,42 +319,145 @@ export default function ComunicaFacil() {
 
   const cartoesNaSessaoAtual = cartoes.filter(cartao => cartao.sessaoId === sessaoAtual);
 
+  const scrollSessions = (direction) => {
+    if (sessionsRef.current) {
+      const scrollAmount = 200; // Ajuste conforme necessário
+      const newScrollPosition = sessionsRef.current.scrollLeft + (direction === 'right' ? scrollAmount : -scrollAmount);
+      sessionsRef.current.scrollTo({
+        left: newScrollPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const handleLongPress = (sessaoId) => {
+    if (sessaoId === 'principal') return;
+    longPressTimerRef.current = setTimeout(() => {
+      setSessaoComControles(sessaoId);
+    }, 500);
+  };
+
+  const handlePressEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+  };
+
+  // Adicionar manipulador de clique global para esconder os controles
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sessaoComControles && !event.target.closest('.session-item')) {
+        setSessaoComControles(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [sessaoComControles]);
+
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">ComunicaFácil - Criador de Cartões Visuais</h1>
+    <div className="app-container">
+      <h1 className="app-title">ComunicaFácil - Criador de Cartões Visuais</h1>
 
       {/* Lista de Sessões */}
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-4">Sessões</h2>
-        <div className="flex gap-2 flex-wrap bg-gray-100 p-4 rounded-lg">
-          {sessoes.map(sessao => (
-            <button
-              key={sessao.id}
-              onClick={() => setSessaoAtual(sessao.id)}
-              className={`px-4 py-2 rounded-full ${
-                sessaoAtual === sessao.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white hover:bg-gray-200'
-              }`}
-            >
-              {sessao.nome} ({sessao.cartoes.length})
-            </button>
+      <div className="sessions-container">
+        <button
+          onClick={() => scrollSessions('left')}
+          className="scroll-button left"
+          aria-label="Rolar sessões para esquerda"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        <div className="sessions-scroll" ref={sessionsRef}>
+          {sessoes.map((sessao, index) => (
+            <div key={sessao.id} className="session-item relative">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSessaoAtual(sessao.id)}
+                  onMouseDown={() => handleLongPress(sessao.id)}
+                  onMouseUp={handlePressEnd}
+                  onMouseLeave={handlePressEnd}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    handleLongPress(sessao.id);
+                  }}
+                  onTouchEnd={handlePressEnd}
+                  className={`session-button ${sessaoAtual === sessao.id ? 'active' : ''}`}
+                >
+                  {sessao.nome} ({sessao.cartoes.length})
+                </button>
+                {sessao.id !== 'principal' && sessaoComControles === sessao.id && (
+                  <div className="session-controls flex items-center gap-1">
+                    {index > 1 && (
+                      <button
+                        onClick={() => {
+                          moverSessao(sessao.id, 'esquerda');
+                          setSessaoComControles(null);
+                        }}
+                        className="control-button"
+                        title="Mover para esquerda"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    )}
+                    {index < sessoes.length - 1 && (
+                      <button
+                        onClick={() => {
+                          moverSessao(sessao.id, 'direita');
+                          setSessaoComControles(null);
+                        }}
+                        className="control-button"
+                        title="Mover para direita"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleExcluirSessao(sessao.id)}
+                      className="delete-session-button"
+                      title="Excluir sessão"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           ))}
         </div>
+
+        <button
+          onClick={() => scrollSessions('right')}
+          className="scroll-button right"
+          aria-label="Rolar sessões para direita"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </div>
 
       {/* Botões de Criação */}
       <div className="flex gap-4 mb-6">
         <button
           onClick={() => setMostrarCriacao(!mostrarCriacao)}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          className="button-primary px-4 py-2 rounded"
         >
           {mostrarCriacao ? "Ocultar Criação de Cartões" : "Criar Cartões"}
         </button>
 
         <button
           onClick={() => setMostrarCriacaoSessao(!mostrarCriacaoSessao)}
-          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          className="button-primary px-4 py-2 rounded"
         >
           {mostrarCriacaoSessao ? "Ocultar Criação de Sessão" : "Criar Sessão"}
         </button>
@@ -260,7 +465,7 @@ export default function ComunicaFacil() {
 
       {/* Área de Criação de Sessão */}
       {mostrarCriacaoSessao && (
-        <div className="bg-gray-100 p-4 rounded-lg mb-6">
+        <div className="card-container mb-6">
           <h3 className="font-semibold mb-3">Nova Sessão</h3>
           <div className="flex gap-4">
             <input
@@ -268,11 +473,11 @@ export default function ComunicaFacil() {
               value={novaSessao}
               onChange={(e) => setNovaSessao(e.target.value)}
               placeholder="Nome da nova sessão"
-              className="border p-2 rounded flex-1"
+              className="input-field flex-1"
             />
             <button
               onClick={handleCriarSessao}
-              className="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700"
+              className="button-primary px-6 py-2 rounded"
             >
               Adicionar
             </button>
@@ -282,41 +487,43 @@ export default function ComunicaFacil() {
 
       {/* Área de Criação de Cartões */}
       {mostrarCriacao && (
-        <div className="grid gap-4 md:grid-cols-2 mb-8">
-          <div className="space-y-4">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setImagem(e.target.files[0])}
-              className="border p-2 rounded w-full"
-            />
-            <textarea
-              placeholder="Digite o texto do cartão (ex: Quero água)"
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              className="border p-2 rounded w-full"
-            />
-            <button
-              onClick={handleCriarCartao}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Criar Cartão
-            </button>
-          </div>
+        <div className="card-container mb-8">
+          <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-4">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setImagem(e.target.files[0])}
+                className="input-field w-full"
+          />
+          <textarea
+            placeholder="Digite o texto do cartão (ex: Quero água)"
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+                className="input-field w-full"
+          />
+          <button
+            onClick={handleCriarCartao}
+                className="button-primary px-4 py-2 rounded"
+          >
+            Criar Cartão
+          </button>
+        </div>
 
-          <div className="space-y-4">
-            <h2 className="font-semibold">Prévia:</h2>
-            {imagem && texto && (
-              <div className="border rounded-2xl overflow-hidden shadow">
-                <img 
-                  src={imagem ? URL.createObjectURL(imagem) : ''} 
-                  alt="Prévia" 
-                  className="w-full h-48 object-cover" 
-                />
-                <div className="p-4 text-center text-lg font-medium">{texto}</div>
-              </div>
-            )}
-          </div>
+        <div className="space-y-4">
+              <h2 className="font-semibold text-white">Prévia:</h2>
+          {imagem && texto && (
+                <div className="preview-card">
+                  <img 
+                    src={imagem ? URL.createObjectURL(imagem) : ''} 
+                    alt="Prévia" 
+                    className="w-full h-48 object-cover" 
+                  />
+                  <div className="preview-text p-4">{texto}</div>
+            </div>
+          )}
+        </div>
+      </div>
         </div>
       )}
 
@@ -329,24 +536,24 @@ export default function ComunicaFacil() {
         {cartoesNaSessaoAtual.map((cartao) => (
           <div 
             key={cartao.id} 
-            className="relative border rounded-2xl overflow-hidden shadow cursor-pointer transform transition-transform hover:scale-105"
+            className="preview-card relative group"
           >
             <div
               onClick={() => lerTexto(cartao.texto)}
               title="Clique para ouvir"
               className="w-full h-full"
             >
-              <img src={cartao.imagem} alt="Cartão" className="w-full h-48 object-cover" />
-              <div className="p-4 text-center text-lg font-medium">{cartao.texto}</div>
+            <img src={cartao.imagem} alt="Cartão" className="w-full h-48 object-cover" />
+              <div className="preview-text p-4">{cartao.texto}</div>
             </div>
             
-            <div className="absolute top-2 right-2 flex gap-2">
+            <div className="card-controls hidden group-hover:flex">
               <button
                 onClick={() => {
                   setCartaoParaMover(cartao);
                   setMostrarModalMover(true);
                 }}
-                className="bg-white p-2 rounded-full shadow hover:bg-gray-100"
+                className="control-button"
                 title="Mover para outra sessão"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -360,10 +567,10 @@ export default function ComunicaFacil() {
                   setCartaoParaExcluir(cartao);
                   setMostrarModalExcluir(true);
                 }}
-                className="bg-white p-2 rounded-full shadow hover:bg-gray-100"
+                className="control-button control-button-danger"
                 title="Excluir cartão"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
               </button>
@@ -374,9 +581,9 @@ export default function ComunicaFacil() {
 
       {/* Modal para mover cartão */}
       {mostrarModalMover && cartaoParaMover && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">Mover cartão para sessão:</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="modal-content p-6 max-w-md w-full">
+            <h3 className="modal-title text-lg mb-4">Mover cartão para sessão:</h3>
             <div className="space-y-2">
               {sessoes
                 .filter(sessao => sessao.id !== sessaoAtual)
@@ -384,7 +591,7 @@ export default function ComunicaFacil() {
                   <button
                     key={sessao.id}
                     onClick={() => handleMoverCartao(cartaoParaMover.id, sessao.id)}
-                    className="w-full text-left p-2 hover:bg-gray-100 rounded"
+                    className="w-full text-left p-2 hover:bg-gray-100 rounded modal-text"
                   >
                     {sessao.nome}
                   </button>
@@ -395,7 +602,7 @@ export default function ComunicaFacil() {
                 setMostrarModalMover(false);
                 setCartaoParaMover(null);
               }}
-              className="mt-4 w-full bg-gray-200 p-2 rounded hover:bg-gray-300"
+              className="mt-4 w-full modal-button-secondary p-2 rounded"
             >
               Cancelar
             </button>
@@ -406,16 +613,16 @@ export default function ComunicaFacil() {
       {/* Modal de confirmação para excluir cartão */}
       {mostrarModalExcluir && cartaoParaExcluir && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">Confirmar exclusão</h3>
-            <p className="mb-6">
+          <div className="modal-content p-6 max-w-md w-full">
+            <h3 className="modal-title text-lg mb-4">Confirmar exclusão</h3>
+            <p className="modal-text mb-6">
               Tem certeza que deseja excluir o cartão "{cartaoParaExcluir.texto}"? 
               Esta ação não pode ser desfeita.
             </p>
             <div className="flex gap-4">
               <button
                 onClick={() => handleExcluirCartao(cartaoParaExcluir.id)}
-                className="flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                className="flex-1 modal-button-primary p-2 rounded"
               >
                 Excluir
               </button>
@@ -424,7 +631,38 @@ export default function ComunicaFacil() {
                   setMostrarModalExcluir(false);
                   setCartaoParaExcluir(null);
                 }}
-                className="flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
+                className="flex-1 modal-button-secondary p-2 rounded"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmação para excluir sessão */}
+      {mostrarModalExcluirSessao && sessaoParaExcluir && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="modal-content p-6 max-w-md w-full">
+            <h3 className="modal-title text-lg mb-4">Confirmar exclusão da sessão</h3>
+            <p className="modal-text mb-6">
+              Tem certeza que deseja excluir a sessão "{sessaoParaExcluir.nome}"?<br/>
+              Os cartões desta sessão serão movidos para a sessão Principal.<br/>
+              Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => handleExcluirSessao(sessaoParaExcluir.id)}
+                className="flex-1 modal-button-primary p-2 rounded"
+              >
+                Excluir
+              </button>
+              <button
+                onClick={() => {
+                  setMostrarModalExcluirSessao(false);
+                  setSessaoParaExcluir(null);
+                }}
+                className="flex-1 modal-button-secondary p-2 rounded"
               >
                 Cancelar
               </button>

@@ -1,3 +1,239 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --card-gradient: linear-gradient(135deg, #ffffff 0%, #f7f7f7 100%);
+}
+
+body {
+  background: var(--primary-gradient);
+  min-height: 100vh;
+  color: white;
+}
+
+.app-container {
+  @apply min-h-screen p-4 pb-20;
+  background-image: 
+    radial-gradient(circle at 100% 0%, rgba(255,255,255,0.2) 0%, transparent 25%),
+    radial-gradient(circle at 0% 100%, rgba(255,255,255,0.1) 0%, transparent 25%);
+}
+
+.app-title {
+  @apply text-3xl font-bold mb-6 text-center;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.sessions-container {
+  @apply relative mb-6;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sessions-container.has-context-menu {
+  min-height: 160px;
+}
+
+.sessions-scroll {
+  @apply flex gap-3 overflow-x-auto pb-4 px-2 -mx-2;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x mandatory;
+  max-width: calc(100% - 80px);
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.sessions-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.session-item {
+  @apply flex-none relative;
+  scroll-snap-align: start;
+}
+
+.delete-session-button {
+  @apply p-2 rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 
+         transition-all duration-200 ease-in-out;
+}
+
+.session-button {
+  @apply transition-all duration-200 ease-in-out text-white px-6 py-3 rounded-full;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+}
+
+.session-button.active {
+  @apply text-white font-semibold;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.scroll-button {
+  @apply absolute top-1/2 -translate-y-1/2 bg-white/10 text-white p-2 rounded-full 
+         backdrop-blur-sm hover:bg-white/20 transition-all duration-200 z-10
+         hidden md:flex items-center justify-center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.scroll-button.left {
+  @apply left-0;
+}
+
+.scroll-button.right {
+  @apply right-0;
+}
+
+.card-container {
+  @apply bg-white/10 rounded-xl shadow-lg p-6 backdrop-blur-md;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card {
+  @apply transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl bg-white/10 backdrop-blur-sm;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-content {
+  @apply text-white;
+}
+
+.floating-button {
+  @apply fixed bottom-4 right-4 bg-white/20 text-white rounded-full p-4 shadow-lg 
+         transition-all duration-200 ease-in-out transform hover:scale-110 hover:bg-white/30 
+         flex items-center justify-center z-50 backdrop-blur-sm;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.input-field {
+  @apply bg-white text-gray-900 border border-gray-200 rounded-lg p-2;
+}
+
+.input-field::placeholder {
+  @apply text-gray-500;
+}
+
+.button-primary {
+  @apply bg-white/20 text-white hover:bg-white/30 transition-all duration-200;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.modal-content {
+  @apply bg-white text-gray-900 border border-gray-200 backdrop-blur-md rounded-lg;
+}
+
+.modal-title {
+  @apply text-gray-900 font-semibold;
+}
+
+.modal-text {
+  @apply text-gray-700;
+}
+
+.modal-button-primary {
+  @apply bg-red-600 text-white hover:bg-red-700 transition-all duration-200;
+}
+
+.modal-button-secondary {
+  @apply bg-gray-200 text-gray-800 hover:bg-gray-300 transition-all duration-200;
+}
+
+.preview-card {
+  @apply bg-white text-gray-900 rounded-2xl overflow-hidden shadow-lg;
+}
+
+.preview-text {
+  @apply text-gray-900 text-center text-lg font-medium;
+}
+
+.card-controls {
+  @apply absolute top-2 right-2 flex gap-2;
+}
+
+.control-button {
+  @apply bg-white text-gray-700 p-2 rounded-full shadow hover:bg-gray-100 transition-all duration-200;
+}
+
+.control-button-danger {
+  @apply text-red-600;
+}
+
+.session-context-menu {
+  @apply absolute top-full left-1/2 transform -translate-x-1/2 mt-2 
+         bg-white rounded-lg shadow-xl py-1 min-w-[180px]
+         border border-gray-200;
+  animation: fadeIn 0.2s ease-out;
+  z-index: 9999;
+}
+
+.session-context-menu::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-left: 1px solid #e5e7eb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.session-context-menu-overlay {
+  @apply fixed inset-0;
+  z-index: 9998;
+  background: transparent;
+}
+
+.session-context-menu-item {
+  @apply w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors duration-150
+         flex items-center gap-2 text-sm font-medium text-gray-700;
+  white-space: nowrap;
+}
+
+.session-context-menu-item.danger {
+  @apply text-red-600 hover:bg-red-50;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* Mobile-first adjustments */
+@media (max-width: 640px) {
+  .app-container {
+    @apply px-2;
+  }
+
+  .card-container {
+    @apply p-4;
+  }
+
+  .session-list {
+    @apply flex overflow-x-auto pb-2 -mx-2 px-2;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .session-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .session-item {
+    @apply flex-shrink-0;
+  }
+}
