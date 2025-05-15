@@ -501,7 +501,89 @@ export default function ComunicaFacil() {
               />
             </div>
             <button
-              onClick={() => document.getElementById('cameraInput').click()}
+              onClick={() => {
+                // Tenta abrir a câmera usando a API getUserMedia
+                navigator.mediaDevices.getUserMedia({ 
+                  video: { facingMode: 'user' } // câmera frontal
+                })
+                .then(stream => {
+                  // Cria elementos de vídeo e canvas
+                  const videoEl = document.createElement('video');
+                  const canvasEl = document.createElement('canvas');
+                  
+                  // Configura o vídeo
+                  videoEl.srcObject = stream;
+                  videoEl.autoplay = true;
+                  videoEl.style.width = '100%';
+                  videoEl.style.maxWidth = '400px';
+                  
+                  // Cria o modal para a câmera
+                  const modalDiv = document.createElement('div');
+                  modalDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50';
+                  modalDiv.innerHTML = `
+                    <div class="modal-content p-6 max-w-md w-full">
+                      <div class="flex justify-between items-center mb-4">
+                        <h3 class="modal-title text-lg">Tirar Foto</h3>
+                        <button id="switchCamera" class="button-primary p-2 rounded">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div id="videoContainer" class="relative mb-4"></div>
+                      <div class="flex gap-4">
+                        <button id="captureBtn" class="flex-1 modal-button-primary p-2 rounded">Capturar</button>
+                        <button id="cancelBtn" class="flex-1 modal-button-secondary p-2 rounded">Cancelar</button>
+                      </div>
+                    </div>
+                  `;
+                  
+                  document.body.appendChild(modalDiv);
+                  document.getElementById('videoContainer').appendChild(videoEl);
+                  
+                  // Função para trocar a câmera
+                  let isFrontCamera = true;
+                  document.getElementById('switchCamera').onclick = () => {
+                    isFrontCamera = !isFrontCamera;
+                    const newFacingMode = isFrontCamera ? 'user' : 'environment';
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    navigator.mediaDevices.getUserMedia({
+                      video: { facingMode: newFacingMode }
+                    }).then(newStream => {
+                      stream = newStream;
+                      videoEl.srcObject = newStream;
+                    });
+                  };
+                  
+                  // Capturar foto
+                  document.getElementById('captureBtn').onclick = () => {
+                    canvasEl.width = videoEl.videoWidth;
+                    canvasEl.height = videoEl.videoHeight;
+                    canvasEl.getContext('2d').drawImage(videoEl, 0, 0);
+                    
+                    canvasEl.toBlob(blob => {
+                      const file = new File([blob], "camera-photo.jpg", { type: "image/jpeg" });
+                      setImagem(file);
+                      
+                      // Limpa tudo
+                      stream.getTracks().forEach(track => track.stop());
+                      modalDiv.remove();
+                    }, 'image/jpeg');
+                  };
+                  
+                  // Cancelar
+                  document.getElementById('cancelBtn').onclick = () => {
+                    stream.getTracks().forEach(track => track.stop());
+                    modalDiv.remove();
+                  };
+                })
+                .catch(err => {
+                  console.error('Erro ao acessar a câmera:', err);
+                  // Se falhar, abre o input file normal
+                  document.getElementById('fileInput').click();
+                });
+              }}
               className="button-primary px-4 py-2 rounded flex items-center gap-2"
               title="Tirar foto com a câmera"
             >
@@ -510,14 +592,6 @@ export default function ComunicaFacil() {
               </svg>
               Câmera
             </button>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => setImagem(e.target.files[0])}
-              className="hidden"
-              id="cameraInput"
-            />
           </div>
           <textarea
             placeholder="Digite o texto do cartão (ex: Quero água)"
