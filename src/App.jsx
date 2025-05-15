@@ -448,37 +448,24 @@ export default function ComunicaFacil() {
 
       {/* Botões de Criação */}
       <div className="flex gap-4 mb-6">
-        {!mostrarCriacao && !mostrarCriacaoSessao && (
-          <button
-            onClick={() => setMostrarCriacao(true)}
-            className="button-primary px-4 py-2 rounded"
-          >
-            Criar Cartões
-          </button>
-        )}
+        <button
+          onClick={() => setMostrarCriacao(!mostrarCriacao)}
+          className="button-primary px-4 py-2 rounded"
+        >
+          {mostrarCriacao ? "Ocultar Criação de Cartões" : "Criar Cartões"}
+        </button>
 
-        {!mostrarCriacaoSessao && !mostrarCriacao && (
-          <button
-            onClick={() => setMostrarCriacaoSessao(true)}
-            className="button-primary px-4 py-2 rounded"
-          >
-            Criar Sessão
-          </button>
-        )}
+        <button
+          onClick={() => setMostrarCriacaoSessao(!mostrarCriacaoSessao)}
+          className="button-primary px-4 py-2 rounded"
+        >
+          {mostrarCriacaoSessao ? "Ocultar Criação de Sessão" : "Criar Sessão"}
+        </button>
       </div>
 
       {/* Área de Criação de Sessão */}
       {mostrarCriacaoSessao && (
-        <div className="card-container mb-6 relative">
-          <button
-            onClick={() => setMostrarCriacaoSessao(false)}
-            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
-            title="Fechar"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+        <div className="card-container mb-6">
           <h3 className="font-semibold mb-3">Nova Sessão</h3>
           <div className="flex gap-4">
             <input
@@ -500,149 +487,140 @@ export default function ComunicaFacil() {
 
       {/* Área de Criação de Cartões */}
       {mostrarCriacao && (
-        <div className="card-container mb-8 relative">
-          <button
-            onClick={() => setMostrarCriacao(false)}
-            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
-            title="Fechar"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+        <div className="card-container mb-8">
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setImagem(e.target.files[0])}
-                    className="input-field w-full"
-                    id="fileInput"
-                  />
-                </div>
-                <button
-                  onClick={() => {
-                    // Tenta abrir a câmera usando a API getUserMedia
-                    navigator.mediaDevices.getUserMedia({ 
-                      video: { facingMode: 'user' } // câmera frontal
-                    })
-                    .then(stream => {
-                      // Cria elementos de vídeo e canvas
-                      const videoEl = document.createElement('video');
-                      const canvasEl = document.createElement('canvas');
-                      
-                      // Configura o vídeo
-                      videoEl.srcObject = stream;
-                      videoEl.autoplay = true;
-                      videoEl.style.width = '100%';
-                      videoEl.style.maxWidth = '400px';
-                      
-                      // Cria o modal para a câmera
-                      const modalDiv = document.createElement('div');
-                      modalDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50';
-                      modalDiv.innerHTML = `
-                        <div class="modal-content p-6 max-w-md w-full">
-                          <div class="flex justify-between items-center mb-4">
-                            <h3 class="modal-title text-lg">Tirar Foto</h3>
-                            <button id="switchCamera" class="button-primary p-2 rounded">
-                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
-                              </svg>
-                            </button>
-                          </div>
-                          <div id="videoContainer" class="relative mb-4"></div>
-                          <div class="flex gap-4">
-                            <button id="captureBtn" class="flex-1 modal-button-primary p-2 rounded">Capturar</button>
-                            <button id="cancelBtn" class="flex-1 modal-button-secondary p-2 rounded">Cancelar</button>
-                          </div>
-                        </div>
-                      `;
-                      
-                      document.body.appendChild(modalDiv);
-                      document.getElementById('videoContainer').appendChild(videoEl);
-                      
-                      // Função para trocar a câmera
-                      let isFrontCamera = true;
-                      document.getElementById('switchCamera').onclick = () => {
-                        isFrontCamera = !isFrontCamera;
-                        const newFacingMode = isFrontCamera ? 'user' : 'environment';
-                        stream.getTracks().forEach(track => track.stop());
-                        
-                        navigator.mediaDevices.getUserMedia({
-                          video: { facingMode: newFacingMode }
-                        }).then(newStream => {
-                          stream = newStream;
-                          videoEl.srcObject = newStream;
-                        });
-                      };
-                      
-                      // Capturar foto
-                      document.getElementById('captureBtn').onclick = () => {
-                        canvasEl.width = videoEl.videoWidth;
-                        canvasEl.height = videoEl.videoHeight;
-                        canvasEl.getContext('2d').drawImage(videoEl, 0, 0);
-                        
-                        canvasEl.toBlob(blob => {
-                          const file = new File([blob], "camera-photo.jpg", { type: "image/jpeg" });
-                          setImagem(file);
-                          
-                          // Limpa tudo
-                          stream.getTracks().forEach(track => track.stop());
-                          modalDiv.remove();
-                        }, 'image/jpeg');
-                      };
-                      
-                      // Cancelar
-                      document.getElementById('cancelBtn').onclick = () => {
-                        stream.getTracks().forEach(track => track.stop());
-                        modalDiv.remove();
-                      };
-                    })
-                    .catch(err => {
-                      console.error('Erro ao acessar a câmera:', err);
-                      // Se falhar, abre o input file normal
-                      document.getElementById('fileInput').click();
-                    });
-                  }}
-                  className="button-primary px-4 py-2 rounded flex items-center gap-2"
-                  title="Tirar foto com a câmera"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                  </svg>
-                  Câmera
-                </button>
-              </div>
-              <textarea
-                placeholder="Digite o texto do cartão (ex: Quero água)"
-                value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                    className="input-field w-full"
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setImagem(e.target.files[0])}
+                className="input-field w-full"
+                id="fileInput"
               />
-              <button
-                onClick={handleCriarCartao}
-                    className="button-primary px-4 py-2 rounded"
-              >
-                Criar Cartão
-              </button>
             </div>
-
-            <div className="space-y-4">
-                  <h2 className="font-semibold text-white">Prévia:</h2>
-              {imagem && texto && (
-                    <div className="preview-card">
-                      <img 
-                        src={imagem ? URL.createObjectURL(imagem) : ''} 
-                        alt="Prévia" 
-                        className="w-full h-48 object-cover" 
-                      />
-                      <div className="preview-text p-4">{texto}</div>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => {
+                // Tenta abrir a câmera usando a API getUserMedia
+                navigator.mediaDevices.getUserMedia({ 
+                  video: { facingMode: 'user' } // câmera frontal
+                })
+                .then(stream => {
+                  // Cria elementos de vídeo e canvas
+                  const videoEl = document.createElement('video');
+                  const canvasEl = document.createElement('canvas');
+                  
+                  // Configura o vídeo
+                  videoEl.srcObject = stream;
+                  videoEl.autoplay = true;
+                  videoEl.style.width = '100%';
+                  videoEl.style.maxWidth = '400px';
+                  
+                  // Cria o modal para a câmera
+                  const modalDiv = document.createElement('div');
+                  modalDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50';
+                  modalDiv.innerHTML = `
+                    <div class="modal-content p-6 max-w-md w-full">
+                      <div class="flex justify-between items-center mb-4">
+                        <h3 class="modal-title text-lg">Tirar Foto</h3>
+                        <button id="switchCamera" class="button-primary p-2 rounded">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div id="videoContainer" class="relative mb-4"></div>
+                      <div class="flex gap-4">
+                        <button id="captureBtn" class="flex-1 modal-button-primary p-2 rounded">Capturar</button>
+                        <button id="cancelBtn" class="flex-1 modal-button-secondary p-2 rounded">Cancelar</button>
+                      </div>
+                    </div>
+                  `;
+                  
+                  document.body.appendChild(modalDiv);
+                  document.getElementById('videoContainer').appendChild(videoEl);
+                  
+                  // Função para trocar a câmera
+                  let isFrontCamera = true;
+                  document.getElementById('switchCamera').onclick = () => {
+                    isFrontCamera = !isFrontCamera;
+                    const newFacingMode = isFrontCamera ? 'user' : 'environment';
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    navigator.mediaDevices.getUserMedia({
+                      video: { facingMode: newFacingMode }
+                    }).then(newStream => {
+                      stream = newStream;
+                      videoEl.srcObject = newStream;
+                    });
+                  };
+                  
+                  // Capturar foto
+                  document.getElementById('captureBtn').onclick = () => {
+                    canvasEl.width = videoEl.videoWidth;
+                    canvasEl.height = videoEl.videoHeight;
+                    canvasEl.getContext('2d').drawImage(videoEl, 0, 0);
+                    
+                    canvasEl.toBlob(blob => {
+                      const file = new File([blob], "camera-photo.jpg", { type: "image/jpeg" });
+                      setImagem(file);
+                      
+                      // Limpa tudo
+                      stream.getTracks().forEach(track => track.stop());
+                      modalDiv.remove();
+                    }, 'image/jpeg');
+                  };
+                  
+                  // Cancelar
+                  document.getElementById('cancelBtn').onclick = () => {
+                    stream.getTracks().forEach(track => track.stop());
+                    modalDiv.remove();
+                  };
+                })
+                .catch(err => {
+                  console.error('Erro ao acessar a câmera:', err);
+                  // Se falhar, abre o input file normal
+                  document.getElementById('fileInput').click();
+                });
+              }}
+              className="button-primary px-4 py-2 rounded flex items-center gap-2"
+              title="Tirar foto com a câmera"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+              </svg>
+              Câmera
+            </button>
           </div>
+          <textarea
+            placeholder="Digite o texto do cartão (ex: Quero água)"
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+                className="input-field w-full"
+          />
+          <button
+            onClick={handleCriarCartao}
+                className="button-primary px-4 py-2 rounded"
+          >
+            Criar Cartão
+          </button>
+        </div>
+
+        <div className="space-y-4">
+              <h2 className="font-semibold text-white">Prévia:</h2>
+          {imagem && texto && (
+                <div className="preview-card">
+                  <img 
+                    src={imagem ? URL.createObjectURL(imagem) : ''} 
+                    alt="Prévia" 
+                    className="aspect-square w-32 object-cover" 
+                  />
+                  <div className="preview-text p-4">{texto}</div>
+            </div>
+          )}
+        </div>
+      </div>
         </div>
       )}
 
@@ -651,36 +629,28 @@ export default function ComunicaFacil() {
         Cartões na Sessão: {sessoes.find(s => s.id === sessaoAtual)?.nome}
       </h2>
       
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {cartoesNaSessaoAtual.map((cartao) => (
           <div 
             key={cartao.id} 
-            className="preview-card relative group bg-white rounded-lg shadow-lg overflow-hidden aspect-square"
+            className="preview-card relative group w-32"
           >
             <div
               onClick={() => lerTexto(cartao.texto)}
               title="Clique para ouvir"
-              className="w-full h-full flex flex-col"
+              className="w-32"
             >
-              <div className="w-full aspect-square">
-                <img 
-                  src={cartao.imagem} 
-                  alt="Cartão" 
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="preview-text p-2 text-center bg-white text-black text-sm">
-                {cartao.texto}
-              </div>
+            <img src={cartao.imagem} alt="Cartão" className="aspect-square w-32 object-cover" />
+              <div className="preview-text p-4">{cartao.texto}</div>
             </div>
             
-            <div className="card-controls hidden group-hover:flex absolute top-2 right-2 gap-2">
+            <div className="card-controls hidden group-hover:flex">
               <button
                 onClick={() => {
                   setCartaoParaMover(cartao);
                   setMostrarModalMover(true);
                 }}
-                className="control-button bg-white bg-opacity-75 hover:bg-opacity-100"
+                className="control-button"
                 title="Mover para outra sessão"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -694,7 +664,7 @@ export default function ComunicaFacil() {
                   setCartaoParaExcluir(cartao);
                   setMostrarModalExcluir(true);
                 }}
-                className="control-button control-button-danger bg-white bg-opacity-75 hover:bg-opacity-100"
+                className="control-button control-button-danger"
                 title="Excluir cartão"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -797,10 +767,6 @@ export default function ComunicaFacil() {
           </div>
         </div>
       )}
-
-      <footer className="text-center text-sm text-white py-4 mt-8 border-t border-gray-200">
-        Criado por <a href="https://github.com/vailsoft" target="_blank" rel="noopener noreferrer" className="text-white hover:text-gray-200">@vailsoft</a>
-      </footer>
     </div>
   );
 }
